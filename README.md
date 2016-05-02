@@ -1,55 +1,66 @@
-# Heroku buildpack: PHP
+This article was forked from [Marshall Huss's Bamboo stack article](https://devcenter.heroku.com/articles/static-sites-on-heroku) and updated by [Lee Reilly](http://www.leereilly.net). Lee is a toolsmith and master pintsman hacking on [GitHub Enterprise](https://enterprise.github.com).
 
-![php](https://cloud.githubusercontent.com/assets/51578/8882982/73ea501a-3219-11e5-8f87-311e6b8a86fc.jpg)
+# Static Sites with Ruby on Heroku/Cedar
 
+Sometimes you just have a static website with one or two pages. Here is a simple way to host your static site and cache it on Heroku using a [Rack](http://rack.rubyforge.org/) app.
 
-This is the official [Heroku buildpack](http://devcenter.heroku.com/articles/buildpacks) for PHP applications.
+Your folder should be organized like this:
 
-It uses Composer for dependency management, supports PHP or HHVM (experimental) as runtimes, and offers a choice of Apache2 or Nginx web servers.
+```
+- MySite
+  |- config.ru
+  |- Gemfile
+  |- public
+    |- index.html
+    |- images
+    |- js
+    |- css
+```
 
-## Usage
+In `Gemfile` file add the following:
 
-You'll need to use at least an empty `composer.json` in your application.
+```ruby
+source :rubygems
 
-    $ echo '{}' > composer.json
-    $ git add composer.json
-    $ git commit -m "add composer.json for PHP app detection"
+gem 'rack'
+```
 
-If you also have files from other frameworks or languages that could trigger another buildpack to detect your application as one of its own, e.g. a `package.json` which might cause your code to be detected as a Node.js application even if it is a PHP application, then you need to manually set your application to use this buildpack:
+You should use [bundler](https://devcenter.heroku.com/articles/bundler) to generate the `Gemfile.lock` file:
 
-    $ heroku buildpacks:set heroku/php
+```
+GEM
+  remote: http://rubygems.org/
+  specs:
+    rack (1.4.1)
 
-This will use the officially published version. To use the `master` branch from GitHub instead:
+PLATFORMS
+  ruby
 
-    $ heroku buildpacks:set https://github.com/heroku/heroku-buildpack-php
+DEPENDENCIES
+  rack
+```
 
-Please refer to [Dev Center](https://devcenter.heroku.com/categories/php) for further usage instructions.
+In `config.ru` file add the following:
 
-## Custom Platform Repositories
+```ruby
+use Rack::Static,
+  :urls => ["/images", "/js", "/css"],
+  :root => "public"
 
-The buildpack uses Composer repositories to resolve platform (`php`, `hhvm`, `ext-something`, ...) dependencies.
+run lambda { |env|
+  [
+    200,
+    {
+      'Content-Type'  => 'text/html',
+      'Cache-Control' => 'public, max-age=86400'
+    },
+    File.open('public/index.html', File::RDONLY)
+  ]
+}
+```
 
-To use a custom Composer repository with additional or different platform packages, add the URL to its `packages.json` to the `HEROKU_PHP_PLATFORM_REPOSITORIES` config var:
+This assumes that your template uses relative references to the images and stylesheets. Go ahead and deploy the app. If you are not sure how to deploy to Heroku check out the [quickstart guide](https://devcenter.heroku.com/articles/quickstart).
 
-    $ heroku config:set HEROKU_PHP_PLATFORM_REPOSITORIES="https://mybucket.s3.amazonaws.com/cedar-14/packages.json"
+And there you go, a static site being served on Heroku completely cached and easily served using a single [dyno](https://devcenter.heroku.com/articles/dynos).
 
-To allow the use of multiple custom repositories, the config var may hold a list of multiple repository URLs, separated by a space character, in ascending order of precedence.
-
-If the first entry in the list is "`-`" instead of a URL, the default platform repository is disabled entirely. This can be useful when testing development repositories, or to forcefully prevent the use of unwanted packages from the default platform repository.
-
-For instructions on how to build custom platform packages (and a repository to hold them), please refer to the instructions [further below](#custom-platform-packages-and-repositories).
-
-**Please note that Heroku cannot provide support for issues related to custom platform repositories and packages.**
-
-## Development
-
-The following information only applies if you're forking and hacking on this buildpack for your own purposes.
-
-### Pull Requests
-
-Please submit all pull requests against `develop` as the base branch.
-
-### Custom Platform Packages and Repositories
-
-Please refer to the [README in `support/build/`](support/build/README.md) for instructions.
-
+If this article is incorrect or outdated, or omits critical information, please [let us know](https://devcenter.heroku.com/articles/static-sites-on-heroku#). For all other issues, please see our [support channels](https://devcenter.heroku.com/articles/support-channels).
